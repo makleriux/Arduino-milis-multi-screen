@@ -3,10 +3,9 @@ DHT22 pin = D2
 DS12b20 pin = D3  
 */
 
-#include <OneWire.h> //DS18B20
-#include <DallasTemperature.h> //DS18B20
-#include <DHT.h> // DTH22
-//#include <CD74HC4067.h> // MUX
+#include <OneWire.h> //DS18B20 waterproof temp sensor 
+#include <DallasTemperature.h> //DS18B20 waterproof temp sensor 
+#include <DHT.h> // DTH22 temp, RH sensor
 //LCD SSD1306
 #include <SPI.h>
 #include <Wire.h>
@@ -15,7 +14,7 @@ DS12b20 pin = D3
 
 //-----------------------------------------  set pin numbers:
 #define ONE_WIRE_BUS 3 // Data wire for DS18B20
-//CD74HC4067 my_mux(12, 11, 10, 9); // MUX
+
 
 #define DHTPIN 2     // DTH 22 what pin we're connected to
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
@@ -25,9 +24,10 @@ DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 Adafruit_SSD1306 display1(OLED_RESET); 1st screen
 Adafruit_SSD1306 display2(OLED_RESET); 2nd screen
 #define NUMFLAKES 10
-int relay_1 = 5; //rele
-int targetHumidity = 57;  //nustatymai Dregnumas
-//DS18B20
+//setings
+int relay_1 = 5; //relay
+int targetHumidity = 57;  //RH
+//DS18B20 
 OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices  
 DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Temperature. 
 
@@ -52,9 +52,7 @@ void setup() {
      sensors.begin(); //DS18B20
      dht.begin();   // DTH 22
 //LCD SSD1306
-//my_mux.channel(0);
 display1.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-//my_mux.channel(1);
 display2.begin(SSD1306_SWITCHCAPVCC, 0x3D);
 pinMode(relay_1,OUTPUT);//rele
 }
