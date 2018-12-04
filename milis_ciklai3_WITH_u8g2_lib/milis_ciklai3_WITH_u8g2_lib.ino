@@ -3,7 +3,8 @@
 DHT22 pin = D2
 DS12b20 pin = D3  
 */
-
+#include <DS1302RTC.h> //real time clock
+#include <TimeLib.h>
 #include <OneWire.h> //DS18B20 waterproof temp sensor 
 #include <DallasTemperature.h> //DS18B20 waterproof temp sensor 
 #include <DHT.h> // DTH22 temp, RH sensor
@@ -22,6 +23,7 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 //setings
+DS1302RTC RTC(2, 3, 4); // Set pins DS1302:  CE, IO,CLK
 int relay_1 = 5; //relay
 int targetHumidity = 50;  //RH
 //DS18B20 
@@ -31,12 +33,18 @@ DallasTemperature sensors(&oneWire); // Pass our oneWire reference to Dallas Tem
 // ---------------------------------- Variables
 // millis and cycle 
 long mainCycleMillis = 0;        // will store last time item was updated
-long mainCycleInterval = 1000;   // interval how long pause will last (milliseconds)
-int cycle = 0;                   // every cycle last 30 sec.   
+long mainCycleInterval = 5000;   // interval how long pause will last (milliseconds)
+int cycle = 0;// every cycle last 5 sec.
+int minCycle = 0; // 12 cycle = 1 min   
 int hourCycle = 0;
 int daysCycle = 0;
+/* TIME */
+float minut;
+float val;
+float sec;
 //DTH22
 int chk;
+float timtim;
 float dhtHum;  //Stores humidity value
 float dhtTemp; //Stores temperature value
 //DS18b20
@@ -51,7 +59,6 @@ void tcaselect(uint8_t i2c_bus) {
     Wire.write(1 << i2c_bus);
     Wire.endTransmission(); 
 }
-
 //******************************************************************
 void setup() {
   DisplayInit(); // Initialize the displays 
@@ -65,11 +72,56 @@ void DisplayInit(){
     for (int i = 0; i < 7; i++) { // get through all MUX ports
       tcaselect(i);   // Loop through each connected displays on the I2C buses       
         u8g2.begin();  // Initialize display
-        u8g2.setFont(u8g2_font_profont11_tr); //LCD font
-}}
+        u8g2.setFont(u8g2_font_profont15_tr); //LCD font
+}
+tcaselect(2); // Selecting channel in MUX
+      u8g2.firstPage();  
+      do {
+        /******** Display Something *********/
+    u8g2.drawStr(0,12,"RTC Check");
+    if (RTC.haltRTC())  // Check clock oscillation  
+    u8g2.drawStr(0,27, "Clock stopped!");
+  else
+    u8g2.drawStr(0,27, "Clock working.");
+     
+  if (RTC.writeEN()) // Check write-protection
+   u8g2.drawStr(0,40,"Write allowed.");
+  else
+    u8g2.drawStr(0,40,"Write protected."); 
+        /************************************/
+      } while( u8g2.nextPage() );
+      delay(2000);
+// Setup Time library  
+ setSyncProvider(RTC.get); // the function to get the time from the RTC
+ u8g2.firstPage();  
+      do {
+  if (timeStatus() == timeSet)
+    u8g2.drawStr(0,53,"Sync Ok!");
+  
+  else
+    u8g2.drawStr(0,53,"Sync FAIL!");
+    } while( u8g2.nextPage() );
+      delay(2000);
+} 
+//RTC remove errors
+void print2digits(int number) {
+  if (number >= 0 && number < 10)
+    Serial.write('0');
+  Serial.print(number);
+}
+
 //******************************************************************
 void loop()
-{
+{ tmElements_t tm;
+if (! RTC.read(tm)) {
+//val = print2digits(tm.Hour);
+//minut = print2digits(tm.Minute);
+//sec = print2digits(tm.Second);
+//  Day    (tm.Day);
+//  month  (tm.Month);
+//  Year   (tmYearToCalendar(tm.Year));
+    delay(50);  
+  }
   unsigned long mainCycleCurrentMillis = millis(); // cycle starts
   if(mainCycleCurrentMillis - mainCycleMillis > mainCycleInterval) {   
 
@@ -77,9 +129,8 @@ void loop()
     dhtHum = dht.readHumidity();
     dhtTemp= dht.readTemperature();
     temp_1= sensors.getTempCByIndex(0);// You can have more than one DS18B20 on the same bus.
-    String tempToStr1 = String(temp_1); // float to string DS18B20
-    String tempToStr2 = String(dhtTemp); // float to string DTH22
-    String tempToStr3 = String(dhtHum); // float to string DTH22
+    temp_2= sensors.getTempCByIndex(1);// You can have more than one DS18B20 on the same bus.
+    
   // uncoment to test in serial 
     Serial.print("Temperature is: "); 
     Serial.print(temp_1);  
@@ -91,59 +142,73 @@ void loop()
     Serial.print(" %, Temp: ");
     Serial.print(dhtTemp);
     Serial.println(" Celsius"); 
+ 
 //LCD SSD1306
 tcaselect(0); // Selecting channel in MUX
       u8g2.firstPage();  
       do {
         /******** Display Something *********/
-    u8g2.drawStr(0,7,"1st Screen");
-    u8g2.drawStr(0,17, "Minutes Online: ");
-    u8g2.setCursor(95,17);
-    u8g2.print(cycle);
-    u8g2.drawStr(0,28," The quick brown fox");
-    u8g2.drawStr(0,35,"jumps over a lazy ");
-    u8g2.drawStr(0,42,"dog ");
+    u8g2.drawStr(0,12,"1st Screen");
+    u8g2.drawStr(0,25, "On: ");
+    u8g2.setCursor(58,25); 
+    u8g2.print(minCycle); //minute
+    u8g2.drawStr(80,25, "m. ");
+    u8g2.setCursor(25,25);
+    u8g2.print(hourCycle); // hour
+    u8g2.drawStr(40,25, "h. ");
         /************************************/
       } while( u8g2.nextPage() );
-      delay(500);
+      delay(50);
       
 tcaselect(1); // Selecting channel in MUX
       u8g2.firstPage();  
       do {
         /******** Display Something *********/
-    u8g2.drawStr(0,7,"2nd Screen");
-    u8g2.drawStr(0,14," all good me to come");
-    u8g2.drawStr(0,21,"to the aid the party");
-    u8g2.drawStr(0,28," The quick brown fox");
-    u8g2.drawStr(0,35,"jumps over a lazy ");
-    u8g2.drawStr(0,42,"dog ");
+    u8g2.drawStr(0,12,"Temperature");
+    u8g2.drawStr(0,25,"Enviroment: ");
+    u8g2.setCursor(85,25);
+    u8g2.print(/*dhtTemp*/);
+    u8g2.drawStr(110,25,"C");
+    u8g2.drawStr(0,38,"Water 1: ");
+    if (temp_1 = -127){u8g2.drawStr(60,38,"Offline");
+    }
+    else {u8g2.setCursor(60,38);
+          u8g2.print(temp_1);
+          u8g2.drawStr(110,38,"C");
+          }        
+    u8g2.drawStr(0,52,"Water 2: ");
+   if (temp_2 = -127){u8g2.drawStr(60,52,"Offline");
+    }
+    else {u8g2.setCursor(60,52);
+          u8g2.print(temp_2);
+          u8g2.drawStr(110,52,"C");
+          }        
         /************************************/
       } while( u8g2.nextPage() );
-      delay(500);
+      delay(50);
 tcaselect(2); // Selecting channel in MUX
      u8g2.firstPage();  
       do {
         /******** Display Something *********/
-    u8g2.drawStr(0,7,"3rd Screen");
-    u8g2.drawStr(0,14," all good me to come");
-    u8g2.drawStr(0,21,"to the aid the party");
-    u8g2.drawStr(0,28," The quick brown fox");
-    u8g2.drawStr(0,35,"jumps over a lazy ");
-    u8g2.drawStr(0,42,"dog ");
+    u8g2.drawStr(0,12,"3rd Screen");
         /************************************/
       } while( u8g2.nextPage() );
-      delay(500);
+      delay(50);
       
     if (dhtHum < targetHumidity) {
        digitalWrite(relay_1, HIGH);
       }
       else { digitalWrite(relay_1, LOW);}
       /******** Counters ***************/
-   if (cycle < 10 ){ 
+   if (cycle < 12 ){ 
     cycle++; }
-    else {hourCycle++;
-    cycle = 0;}// cycle counter reset
+    else if (minCycle < 60) {
+    minCycle++;
+    cycle = 0;}
+    else { hourCycle++;
+    minCycle = 0;
+    cycle = 0; }// cycle counter reset
  mainCycleMillis = mainCycleCurrentMillis; // reset cycle timer
   }
-
+RTC.read(tm);
 }
