@@ -86,12 +86,8 @@ void DisplayInit() {
         tcaselect(i); // Loop through each connected displays on the I2C buses
         u8g2.begin(); // Initialize display
         u8g2.setFont(u8g2_font_profont15_tr); //LCD font
-    }
-   
-   
+    } 
 }
-
-
 //******************************************************************
 void loop() {
    
@@ -195,12 +191,10 @@ void loop() {
         mainCycleMillis = mainCycleCurrentMillis; // reset cycle timer
     }
 }
-#define countof(a) (sizeof(a) / sizeof(a[0]))
-
-void printDateTime(const RtcDateTime& dt)
+#define countof(a) (sizeof(a) / sizeof(a[0])) //RTC
+void printDateTime(const RtcDateTime& dt) RTC
 {
     char datestring[20];
-
     snprintf_P(datestring, 
             countof(datestring),
             PSTR("%02u/%02u/%04u %02u:%02u"),
@@ -209,7 +203,7 @@ void printDateTime(const RtcDateTime& dt)
             dt.Year(),
             dt.Hour(),
             dt.Minute());
-   if (dt.Year() >= 2018){
+   if (dt.Year() >= 2018){ //geting only valid data and put them into string variable for future usage
     time_year = dt.Year();
     time_month = dt.Month();
     time_day = dt.Day();
