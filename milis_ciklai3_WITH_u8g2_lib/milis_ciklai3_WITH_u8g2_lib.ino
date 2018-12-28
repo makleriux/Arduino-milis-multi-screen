@@ -9,7 +9,7 @@ button to activate pump for drineage
  * arduino mega
  * -----------------------------------------------------------------------------------
 //relay_1 = 7
-//relay_2 = 8 lights
+//relayLights = 8 lights
 //DHT22 pin = 6
 //DS12b20 pin = D5
 
@@ -40,36 +40,34 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 # define DHTTYPE DHT22 // DHT 22  (AM2302)
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 ThreeWire myWire(3,4,2); //RTC IO, SCLK, CE
-RtcDS1302<ThreeWire> Rtc(myWire); //RTC
+RtcDS1302<ThreeWire> rtc(myWire); //RTC
 int relay_1 = 7; //relay
-int relay_2 = 8; //relay
+int relayLights = 8; //relay
 int targetHumidity = 50; //RH
 //DS18B20
 OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature sensors( & oneWire); // Pass our oneWire reference to Dallas Temperature.
 
 // ---------------------------------- Variables
-// millis and cycle
+// millis and cycle ----------------------------------------------------------------"Need fix and shortify"
 long mainCycleMillis = 0; // will store last time item was updated
 long mainCycleInterval = 5000; // interval how long pause will last (milliseconds)
 int cycle = 0; // every cycle last 5 sec.
 int minCycle = 0; // 12 cycle = 1 min
-int hourCycle = 0;
-int daysCycle = 0;
-// Lights options
-int lightCycle = 0; // 0 is for 12/12 Flovering, 1 for 18/6, 3 for 20/4, 4 for 24/0
-String lightState = String("Unknown");
-String nightCycleStartHours = String(22);
-String nightCycleStartMin = String(11);
-/* TIME */
-float minut;
-float val;
-float sec;
-String time_year;
-String time_month;
-String time_day;
-String time_val;
-String time_min;
+int hourCycle = 0; // 60 = 1h
+int daysCycle = 0; // 24 = day not used
+
+//RTC
+int time_year, time_month, time_day, time_val, time_min; // storing RTC values "Do not change !!!!!!!!!"
+
+// Lights options (lights will wok acording real time clock module)
+int lightMode = 0; // 0 is for 12/12 Flovering, 1 for 18/6, 3 for 20/4, 4 for 24/0
+//int TotalLightRunTime, lightLeftToRun; // store value of how many minutes lights wil be runing for each mode, and how much time left to run light in case of restarting arduino
+int LightStarTime = 13; // time to start lights hours
+int LightStarTimeMin = 00; // minutes to start lights
+String screenLightState = String("Lights is Off");
+String screenLightRunTime = String("Unknown");
+
 //relays
 int relayState1 = 0;
 //DTH22
@@ -80,24 +78,62 @@ float dhtTemp; //Stores temperature value
 float temp_1 = 0;
 float temp_2 = 0;
 float temp_3 = 0;
-char tmp_string[8]; // Temp string to convert numeric values to string before print to OLED display
+
 //I2C MUX **********************************************************
+char tmp_string[8]; // Temp string to convert numeric values to string before print to OLED display
 void tcaselect(uint8_t i2c_bus) {
     if (i2c_bus > 7) return;
     Wire.beginTransmission(MUX_Address);
     Wire.write(1 << i2c_bus);
     Wire.endTransmission();
 }
+int tempas1, tempas2, tempas3, tempas4, tempas5, tempas6, tempas7, tempas8;
 //******************************************************************
 void setup() {
     DisplayInit(); // Initialize the displays
     Serial.begin(9600);
-    Rtc.Begin(); //DS1302 
+    rtc.Begin(); //DS1302 
     sensors.begin(); //DS18B20 Temp
     dht.begin(); // DTH 22 Temp/humidity
     pinMode(relay_1, OUTPUT); //relay1
-    pinMode(relay_2, OUTPUT); //relay2
-}
+    pinMode(relayLights, OUTPUT); //relay2
+    RtcDateTime now = rtc.GetDateTime(); // Get time
+    printDateTime(now); // Synch time with variables
+/************* Light Mode and timings */
+      switch (lightMode) {
+    case 0:
+      //TotalLightRunTime = 720;
+      screenLightRunTime = "On/Off: 12/12";
+      break;
+    case 1:
+      //TotalLightRunTime = 360;
+      screenLightRunTime = "On/Off: 18/6";
+      break;
+    case 2:
+      //TotalLightRunTime = 240;
+      screenLightRunTime = "On/Off: 20/4";
+      break;
+    default:
+      //TotalLightRunTime = 1440;
+      screenLightRunTime = "On/Off: 24/0";
+      break;
+  }
+  //tempas1 = 
+  //lightLeftToRun = TotalLightRunTime - (TotalLightRunTime - ((24-LightStarTime)*60+LightStarTimeMin)); // left to run lights
+  //Check if lights need to start after rebooting. If left less than 5 min, do not start 
+//  if (lightLeftToRun > 5 ){
+  //  digitalWrite(relayLights, HIGH);
+   // screenLightState = "Lights is On";
+   // }
+      /*-----------------------------------------*/
+
+
+tempas2;
+tempas3;
+tempas4;
+tempas5;
+
+} // end of setup
 // Initialize the displays
 void DisplayInit() {
     for (int i = 0; i < 7; i++) { // get through all MUX ports
@@ -117,24 +153,17 @@ void loop() {
         dhtTemp = dht.readTemperature();
         temp_1 = sensors.getTempCByIndex(0); // You can have more than one DS18B20 on the same bus.
         temp_2 = sensors.getTempCByIndex(1); // You can have more than one DS18B20 on the same bus.
-        RtcDateTime now = Rtc.GetDateTime();
+        RtcDateTime now = rtc.GetDateTime();
         printDateTime(now);
-        //Serial.println(digitalRead (relay_2)); //Debug
-        relayState1 = digitalRead(relay_2);
-        Serial.println(relayState1);
+        relayState1 = digitalRead(relayLights);
+               
 //Auto Lights
-switch (lightCycle) {
+switch (lightMode) {
     case 0:
-      if (nightCycleStartHours == time_val && nightCycleStartMin == time_min ||  nightCycleStartHours < time_val && nightCycleStartHours+12 > time_val  ){ // not right statement as 00h is less than 23
+      if (LightStarTime == time_val && LightStarTimeMin == time_min ){
         if (relayState1 == 0){
-          digitalWrite(relay_2, HIGH);
-          lightState = "Lights is On";         
-          }
-        }
-      if (nightCycleStartHours+12 == time_val && nightCycleStartMin == time_min){
-        if (relayState1 == 0){
-          digitalWrite(relay_2, LOW);
-          lightState = "Lights is Off";          
+          digitalWrite(relayLights, HIGH);
+          screenLightState = "Lights is On";         
           }
         }
       break;
@@ -152,20 +181,8 @@ switch (lightCycle) {
       // default is optional
       break;
   }
-  Serial.print(lightState);
-/*  uncoment to test in serial
-        
-        Serial.print("Temperature is: ");
-        Serial.print(temp_1);
-        Serial.print(" ciklas=");
-        Serial.print(cycle);
-        Serial.print("\r\n");
-        Serial.print("Humidity: ");
-        Serial.print(dhtHum);
-        Serial.print(" %, Temp: ");
-        Serial.print(dhtTemp);
-        Serial.println(" Celsius");
-*/
+  
+
         //LCD SSD1306
         tcaselect(0); // Selecting channel in MUX
         u8g2.firstPage();
@@ -222,7 +239,7 @@ switch (lightCycle) {
             /******** Display Something *********/
             u8g2.drawStr(0, 12, "3rd Screen");
             u8g2.setCursor(0, 26);
-                u8g2.print(lightState);
+                u8g2.print(screenLightState);
             /************************************/
         } while (u8g2.nextPage());
         delay(50);
@@ -244,6 +261,30 @@ switch (lightCycle) {
             cycle = 0;
         } // cycle counter reset
         mainCycleMillis = mainCycleCurrentMillis; // reset cycle timer
+//DEBUG
+        
+        //Serial.println(lightLeftToRun);
+        //Serial.println("time_val*60+time_min;");
+        //Serial.println(tempas1);
+        //Serial.println("viskas cia");
+        //Serial.println(tempas3);
+        //Serial.println("24-LightStarTime"); //Debug
+        //Serial.println(tempas4);
+        //Serial.println("LightStarTimeMin");
+        //Serial.println(tempas5);
+        //Serial.println(tempas5);
+        //Serial.println(tempas6);
+        //Serial.print(screenLightState);
+        //Serial.print("Temperature is: ");
+        //Serial.print(relayState1);
+        //Serial.print(" ciklas=");
+        //Serial.print(cycle);
+        //Serial.print("\r\n");
+        //Serial.print("Humidity: ");
+        //Serial.print(dhtHum);
+        //Serial.print(" %, Temp: ");
+        //Serial.print(dhtTemp);
+        //Serial.println(" Celsius");    
     }
 }
 #define countof(a) (sizeof(a) / sizeof(a[0])) //RTC
