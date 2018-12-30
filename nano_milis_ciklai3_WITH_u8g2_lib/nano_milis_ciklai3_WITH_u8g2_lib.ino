@@ -118,7 +118,7 @@ void loop() {
         } while (u8g2.nextPage());
         delay(50);
 
-        tcaselect(5); // Selecting channel in MUX
+        tcaselect(7); // Selecting channel in MUX
         u8g2.firstPage();
         do {
             /******** Display Something *********/
@@ -146,7 +146,7 @@ void loop() {
             /************************************/
         } while (u8g2.nextPage());
         delay(50);
-        tcaselect(6); // Selecting channel in MUX
+        tcaselect(5); // Selecting channel in MUX
         u8g2.firstPage();
         do {
             /******** Display Something *********/
