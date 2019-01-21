@@ -1,11 +1,5 @@
 /*
- * Future addons
-Menu with potentiometer
-wi-fi module 
-Ink/led screen as main station gathers and display summary in ink or led 7-9 inch
-add dosers, timing for lamps (after GPS date is runing)
-button to flush
-button to activate pump for drineage
+ moved to arduino due
  * arduino mega
  * -----------------------------------------------------------------------------------
 //relay_1 = 7
