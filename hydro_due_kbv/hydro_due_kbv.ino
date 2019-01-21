@@ -1,17 +1,27 @@
 /*
-stepper STEPS, 22, 24, 23, 25
-DS18B20 - pin 28
-DTH22 - pin 29
-Relay 1,2 - 30, 31
+arduino due or mega
 
+stepper STEPS, 22, 24, 23, 25  //ready but not ceded
+2x DS18B20 - pin 28
+DTH22 - pin 29
+Relay 1,2,3,4 - 30, 31, 32, 33  // not coded no pins
+// not implemented ph pumps need more 2 relays
 */
 
 
 #include <OneWire.h > //DS18B20 waterproof temp sensor 
-#include <DallasTemperature.h > //DS18B20 waterproof temp sensor 
+#include <DallasTemperature.h > //DS18B20 waterproof temp sensor
+
 #include <DHT.h > // DTH22 temp, RH sensor
+
 #include "Wire.h"
+
 #include <Stepper.h> // stepper motor
+// change this to the number of steps on your motor
+#define STEPS 64
+// create an instance of the stepper class using the steps and pins
+Stepper stepper(STEPS, 22, 24, 23, 25);
+
 //DISPLAY
 #include <Adafruit_GFX.h>
 #if defined(_GFXFONT_H_)           //are we using the new library?
@@ -44,11 +54,6 @@ MCUFRIEND_kbv tft;
 #define ORANGE    RGB(255,128,64)
 // END DISPLAY
 
-// change this to the number of steps on your motor
-#define STEPS 64
-// create an instance of the stepper class using the steps and pins
-Stepper stepper(STEPS, 22, 24, 23, 25);
-
 # define ONE_WIRE_BUS 28 // Data wire for DS18B20
 OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature sensors( & oneWire); // Pass our oneWire reference to Dallas Temperature.
@@ -68,8 +73,6 @@ long mainCycleInterval = 5000; // interval how long pause will last (millisecond
 int cycle = 0; // every cycle last 5 sec.
 int longCycle = 0; // should be 30min
 int oldLongCycle = 0;
-int longCycleMulti = 2; // increasment of waiting time
-
 
 //DTH22
 int chk;
@@ -92,34 +95,31 @@ void setup(void)
  
   Wire.begin();
   Serial.begin(9600);                                 //set baud rate for the hardware serial port_0 to 9600
-  Serial3.begin(9600);                               //set baud rate for the software serial port to 9600
+  Serial3.begin(9600);                               //set baud rate for the serial port 3 to 9600
   inputstring.reserve(10);                            //set aside some bytes for receiving data from the PC to Atlas
   sensorstring.reserve(30);                           //set aside some bytes for receiving data from Atlas Scientific product
   sensors.begin(); //DS18B20 Temp
   dht.begin(); // DTH 22 Temp/humidity
-  stepper.setSpeed(200);
+  stepper.setSpeed(200); // motor speed 
+   
 // screen    
     tft.reset();
     ID = tft.readID();
-    Serial.print("TFT ID = 0x");
+    Serial.print("TFT ID = 0x");  // check if its working in serial
     Serial.println(ID, HEX);
     //    if (ID == 0xD3D3) ID = 0x9481; // write-only shield
     if (ID == 0xD3D3) ID = 0x9486; // write-only shield
     tft.begin(ID);
-    tft.setRotation(1);
+    tft.setRotation(1); //screen rotation landscape
 #if defined(_GFXFONT_H_)
-    tft.setFont(&FreeSans9pt7b);
-    
+    tft.setFont(&FreeSans9pt7b);   
 #endif
-
-}
-
+} //END of setup
+//Atlas PH
 void serialEvent() {                                  //if the hardware serial port_0 receives a char
   inputstring = Serial.readStringUntil(13);           //read the string until we see a <CR>
   input_string_complete = true;                       //set the flag used to tell if we have received a completed string from the PC
 }
-
-
 void serialEvent3() {                                 //if the hardware serial port_3 receives a char
   sensorstring = Serial3.readStringUntil(13);         //read the string until we see a <CR>
   sensor_string_complete = true;                      //set the flag used to tell if we have received a completed string from the PC
@@ -141,7 +141,8 @@ void loop() {
   }
   sensorstring = "";                                  //clear the string:
   sensor_string_complete = false;                     //reset the flag used to tell if we have received a completed string from the Atlas Scientific product
-  delay(2000);
+  
+   delay(2000); // does it need?????????????????????????<-------------------------------
 
    unsigned long mainCycleCurrentMillis = millis(); // cycle starts
     if (mainCycleCurrentMillis - mainCycleMillis > mainCycleInterval) { 
@@ -217,13 +218,3 @@ void loop() {
     cycle = 0;}
 }
 }
-/*
-void loop(void)
-{
-    uint16_t height, width;
-    width = tft.width();
-    height = tft.height();
-    
-    
-    
-}*/
