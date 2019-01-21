@@ -1,13 +1,4 @@
-/*
- * Future addons
-Menu with potentiometer
-wi-fi module 
-Ink/led screen as main station gathers and display summary in ink or led 7-9 inch
-add dosers, timing for lamps (after GPS date is runing)
-button to flush
-button to activate pump for drineage
- * arduino mega
- * -----------------------------------------------------------------------------------
+/* -----------------------------------------------------------------------------------
 //relay_1 = 7
 //DHT22 pin = D6
 //DS12b20 pin = D5
@@ -24,16 +15,21 @@ button to activate pump for drineage
 #include <Arduino.h > 
 #include <U8g2lib.h > 
 #include <SPI.h > 
-#include <Wire.h >
+#include "Wire.h"
+#include <SoftwareSerial.h>                           //we have to include the SoftwareSerial library, or else we can't use it
+#define rx 2                                          //define what pin rx is going to be
+#define tx 3                                          //define what pin tx is going to be
 
-U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);  // Adafruit ESP8266/32u4/ARM Boards + FeatherWing OLED
+SoftwareSerial myserial(rx, tx);                      //define how the soft serial port is going to work
+
+U8G2_SSD1306_128X32_UNIVISION_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ SCL, /* data=*/ SDA);   // pin remapping with ESP8266 HW I2C
 //-----------------------------------------  set pin numbers:
 # define MUX_Address 0x70 // TCA9548A Encoders address
-# define ONE_WIRE_BUS 5 // Data wire for DS18B20
-# define DHTPIN 6 // DTH 22 what pin we're connected to
+# define ONE_WIRE_BUS 6 // Data wire for DS18B20
+# define DHTPIN 7 // DTH 22 what pin we're connected to
 # define DHTTYPE DHT22 // DHT 22  (AM2302)
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
-int relay_1 = 7; //relay
+int relay_1 = 8; //relay
 int targetHumidity = 50; //RH
 //DS18B20
 OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices
@@ -47,7 +43,12 @@ int cycle = 0; // every cycle last 5 sec.
 int minCycle = 0; // 12 cycle = 1 min
 int hourCycle = 0; // 60 = 1h
 int daysCycle = 0; // 24 = day not used
-
+//PH
+String inputstring = "";                              //a string to hold incoming data from the PC
+String sensorstring = "";                             //a string to hold the data from the Atlas Scientific product
+boolean input_string_complete = false;                //have we received all the data from the PC
+boolean sensor_string_complete = false;               //have we received all the data from the Atlas Scientific product
+float pH; 
 //relays
 int relayState1 = 0;
 //DTH22
@@ -61,6 +62,7 @@ float temp_3 = 0;
 
 //I2C MUX **********************************************************
 char tmp_string[8]; // Temp string to convert numeric values to string before print to OLED display
+uint8_t t=0;         // Port selection (0...7)
 void tcaselect(uint8_t i2c_bus) {
     if (i2c_bus > 7) return;
     Wire.beginTransmission(MUX_Address);
@@ -70,92 +72,73 @@ void tcaselect(uint8_t i2c_bus) {
 int tempas1, tempas2, tempas3, tempas4, tempas5, tempas6, tempas7, tempas8;
 //******************************************************************
 void setup() {
-    DisplayInit(); // Initialize the displays
+    for (t=0; t<7; t++) {  // Initialize the displays
+      tcaselect(t);
+                 u8g2.firstPage();  
+                do {
+                     u8g2.begin();  // Initialize display
+                   
+                   } while(  u8g2.nextPage() );
+        }      
     Serial.begin(9600);
+    myserial.begin(9600);//set baud rate for the software serial port to 9600
     sensors.begin(); //DS18B20 Temp
     dht.begin(); // DTH 22 Temp/humidity
-    pinMode(relay_1, OUTPUT); //relay1
-    
+    pinMode(relay_1, OUTPUT); //relay1                                   
+  inputstring.reserve(10);                            //set aside some bytes for receiving data from the PC
+  sensorstring.reserve(30);
 
-} // end of setup
-// Initialize the displays
-void DisplayInit() {
-    for (int i = 0; i < 7; i++) { // get through all MUX ports
-        tcaselect(i); // Loop through each connected displays on the I2C buses
-        u8g2.begin(); // Initialize display
-        u8g2.setFont(u8g2_font_profont15_tr); //LCD font
-    } 
+} // end of setup 
+void serialEvent() {                                  //if the hardware serial port_0 receives a char
+  inputstring = Serial.readStringUntil(13);           //read the string until we see a <CR>
+  input_string_complete = true;                       //set the flag used to tell if we have received a completed string from the PC
 }
 //******************************************************************
 void loop() {
-   
+   if (input_string_complete) {                        //if a string from the PC has been received in its entirety
+    myserial.print(inputstring);                      //send that string to the Atlas Scientific product
+    myserial.print('\r');                             //add a <CR> to the end of the string
+    inputstring = "";                                 //clear the string
+    input_string_complete = false;                    //reset the flag used to tell if we have received a completed string from the PC
+  }
+  if (myserial.available() > 0) {                     //if we see that the Atlas Scientific product has sent a character
+    char inchar = (char)myserial.read();              //get the char we just received
+    sensorstring += inchar;                           //add the char to the var called sensorstring
+    if (inchar == '\r') {                             //if the incoming character is a <CR>
+      sensor_string_complete = true;                  //set the flag
+    }
+  }
+  if (sensor_string_complete == true) {               //if a string from the Atlas Scientific product has been received in its entirety
+    Serial.println(sensorstring);                     //send that string to the PC's serial monitor
+    pH = sensorstring.toFloat();
+    sensorstring = "";                                //clear the string
+    sensor_string_complete = false;                   //reset the flag used to tell if we have received a completed string from the Atlas Scientific product
+  }
+  
     unsigned long mainCycleCurrentMillis = millis(); // cycle starts
     if (mainCycleCurrentMillis - mainCycleMillis > mainCycleInterval) {
+       Serial.print(" PH =");
+  Serial.print(pH);
+  Serial.print("\r\n");//uncomment this section to see how to convert the pH reading from a string to a float
     
         sensors.requestTemperatures(); // Send the command to get temperature readings
         dhtHum = dht.readHumidity();
         dhtTemp = dht.readTemperature();
         temp_1 = sensors.getTempCByIndex(0); // You can have more than one DS18B20 on the same bus.
-        temp_2 = sensors.getTempCByIndex(1); // You can have more than one DS18B20 on the same bus.
+        temp_2 = sensors.getTempCByIndex(1); // You can have more than one DS18B20 on the same bus
 
         //LCD SSD1306
-        tcaselect(1); // Selecting channel in MUX
-        u8g2.firstPage();
-        do {
-            /******** Display Something *********/
-            u8g2.drawStr(0, 5, "Data: ");
-            u8g2.drawStr(0, 20, "Laikas: ");
+//       tcaselect(3); // Selecting channel in MUX
+//        u8g2.firstPage();
+//        do {
+            /******** Display Something *********/  
+//            u8g2.setFont(u8g_font_ncenB18); //LCD font
+//            u8g2.drawStr(0, 18, "PH: ");
+//            u8g2.setCursor(55, 18);
+//            u8g2.print("ph");
             /************************************/
-        } while (u8g2.nextPage());
-        delay(50);
-        tcaselect(2); // Selecting channel in MUX
-        u8g2.firstPage();
-        do {
-            /******** Display Something *********/
-            u8g2.drawStr(0, 5, "Nr. 2 ");
-            u8g2.drawStr(0, 20, "Laikas: ");
-            /************************************/
-        } while (u8g2.nextPage());
-        delay(50);
-
-        tcaselect(7); // Selecting channel in MUX
-        u8g2.firstPage();
-        do {
-            /******** Display Something *********/
-            u8g2.drawStr(0, 12, "Temperature");
-            u8g2.drawStr(0, 25, "Enviroment: ");
-            u8g2.setCursor(85, 25);
-            u8g2.print(dhtTemp);
-            u8g2.drawStr(110, 25, "C");
-            u8g2.drawStr(0, 38, "Water 1: ");
-            if (temp_1 = -127) {
-                u8g2.drawStr(60, 38, "Offline");
-            } else {
-                u8g2.setCursor(60, 38);
-                u8g2.print(temp_1);
-                u8g2.drawStr(110, 38, "C");
-            }
-            u8g2.drawStr(0, 52, "Water 2: ");
-            if (temp_2 = -127) {
-                u8g2.drawStr(60, 52, "Offline");
-            } else {
-                u8g2.setCursor(60, 52);
-                u8g2.print(temp_2);
-                u8g2.drawStr(110, 52, "C");
-            }
-            /************************************/
-        } while (u8g2.nextPage());
-        delay(50);
-        tcaselect(5); // Selecting channel in MUX
-        u8g2.firstPage();
-        do {
-            /******** Display Something *********/
-            u8g2.drawStr(0, 12, "3rd Screen");
-            u8g2.setCursor(0, 26);
-          
-            /************************************/
-        } while (u8g2.nextPage());
-        delay(50);
+//        } while (u8g2.nextPage());
+//        delay(20);
 
        if (dhtHum < targetHumidity) {
             digitalWrite(relay_1, HIGH);
@@ -175,7 +158,7 @@ void loop() {
         } // cycle counter reset
         mainCycleMillis = mainCycleCurrentMillis; // reset cycle timer
 //DEBUG
-        
+     //   Serial.println(voltage); //ph
         //Serial.println(lightLeftToRun);
         //Serial.println("time_val*60+time_min;");
         //Serial.println(tempas1);
@@ -196,7 +179,7 @@ void loop() {
         //Serial.print("Humidity: ");
         //Serial.print(dhtHum);
         //Serial.print(" %, Temp: ");
-        Serial.print(dhtTemp);
+        //Serial.print(dhtTemp);
         //Serial.println(" Celsius");    
     }
 }
