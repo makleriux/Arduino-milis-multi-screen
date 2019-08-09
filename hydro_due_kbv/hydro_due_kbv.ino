@@ -1,10 +1,14 @@
 /*
 arduino due or mega
 
-stepper STEPS, 22, 24, 23, 25  //ready but not ceded
-2x DS18B20 - pin 28
-DTH22 - pin 29
-Relay 1,2,3,4 - 30, 31, 32, 33  // not coded no pins
+stepper STEPS, 50, 51, 52, 53  //ready but not ceded
+2x DS18B20 - pin 35
+DTH22 - pin 31
+Relay 1,2,3,4 - 43, 41, 47, 45  // not coded no pins
+soil sensor = pin 29
+1 ph up
+2 ph down
+3 humidity
 // not implemented ph pumps need more 2 relays
 */
 
@@ -16,11 +20,11 @@ Relay 1,2,3,4 - 30, 31, 32, 33  // not coded no pins
 
 #include "Wire.h"
 
-#include <Stepper.h> // stepper motor
+////#include <Stepper.h> // stepper motor
 // change this to the number of steps on your motor
-#define STEPS 64
+////#define STEPS 64
 // create an instance of the stepper class using the steps and pins
-Stepper stepper(STEPS, 22, 24, 23, 25);
+////Stepper stepper(STEPS, 42, 46, 44, 48);
 
 //DISPLAY
 #include <Adafruit_GFX.h>
@@ -54,11 +58,11 @@ MCUFRIEND_kbv tft;
 #define ORANGE    RGB(255,128,64)
 // END DISPLAY
 
-# define ONE_WIRE_BUS 28 // Data wire for DS18B20
+# define ONE_WIRE_BUS 35 // Data wire for DS18B20
 OneWire oneWire(ONE_WIRE_BUS); // Setup a oneWire instance to communicate with any OneWire devices
 DallasTemperature sensors( & oneWire); // Pass our oneWire reference to Dallas Temperature.
 
-# define DHTPIN 29 // DTH 22 what pin we're connected to
+# define DHTPIN 31 // DTH 22 what pin we're connected to
 # define DHTTYPE DHT22 // DHT 22  (AM2302)
 DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 
@@ -83,8 +87,14 @@ float dhtTemp; //Stores temperature value
 float temp_1, temp_2 = 0;
 
 //Stepper
-int stepVal = 0;
-int previousStepVal = 0;
+//int stepVal = 0;
+//int previousStepVal = 0;
+
+//Relay`s
+int humidify_relay = 47;
+int phUp_relay = 43;
+int phDown_relay = 41;
+int wave_relay = 45; //future lights
 
 uint16_t ID; //DISPLAY ID
 
@@ -100,7 +110,15 @@ void setup(void)
   sensorstring.reserve(30);                           //set aside some bytes for receiving data from Atlas Scientific product
   sensors.begin(); //DS18B20 Temp
   dht.begin(); // DTH 22 Temp/humidity
-  stepper.setSpeed(200); // motor speed 
+  //stepper.setSpeed(200); // motor speed 
+  pinMode(humidify_relay,OUTPUT);
+  pinMode(phUp_relay,OUTPUT);
+  pinMode(phDown_relay,OUTPUT);
+  pinMode(wave_relay,OUTPUT);
+  digitalWrite(humidify_relay, HIGH);
+  digitalWrite(phUp_relay, HIGH);
+  digitalWrite(phDown_relay, HIGH);
+  digitalWrite(wave_relay, HIGH);
    
 // screen    
     tft.reset();
@@ -126,7 +144,6 @@ void serialEvent3() {                                 //if the hardware serial p
 }
 
 void loop() {
-   
   if (input_string_complete == true) {                //if a string from the PC has been received in its entirety
     Serial3.print(inputstring);                       //send that string to the Atlas Scientific product
     Serial3.print('\r');                              //add a <CR> to the end of the string
@@ -141,7 +158,7 @@ void loop() {
   }
   sensorstring = "";                                  //clear the string:
   sensor_string_complete = false;                     //reset the flag used to tell if we have received a completed string from the Atlas Scientific product
-  
+  int SoilSensVal = analogRead(A8);
    delay(2000); // does it need?????????????????????????<-------------------------------
 
    unsigned long mainCycleCurrentMillis = millis(); // cycle starts
@@ -152,7 +169,9 @@ void loop() {
         dhtTemp = dht.readTemperature();
         temp_1 = sensors.getTempCByIndex(0); // You can have more than one DS18B20 on the same bus.
         temp_2 = sensors.getTempCByIndex(1); // You can have more than one DS18B20 on the same bus.
-
+       // stepper.step(400);
+       // delay(1000);
+       // stepper.step(-400);
 // OUTPUT to display
     tft.fillScreen(BLACK);
     tft.setTextColor(WHITE);
@@ -201,14 +220,15 @@ void loop() {
     tft.setCursor(275, 130 + ADJ_BASELINE);   
     tft.println("Dregme: ");
     tft.setCursor(400, 130 + ADJ_BASELINE);   
-    tft.println("blabla");
+    tft.println(SoilSensVal);
      //4nd line
     tft.setCursor(15, 180 + ADJ_BASELINE);
     tft.print("Sviesos galingumas: ");
-    tft.setCursor(90, 180 + ADJ_BASELINE);   
-    tft.println("sepper %");
-    tft.setCursor(160, 180 + ADJ_BASELINE);   
+    tft.setCursor(190, 180 + ADJ_BASELINE);   
+    tft.println("Neveikia ");
+    tft.setCursor(290, 180 + ADJ_BASELINE);   
     tft.println("%");
+     //5th line
     
     cycle++;
   mainCycleMillis = mainCycleCurrentMillis; // reset cycle timer
